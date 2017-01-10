@@ -34,8 +34,10 @@ func (r *Request) handle() {
 	}
 
 	if cmd, ok = commands[name]; !ok {
-		r.client.send(fmt.Sprintf("invalid command: %s\n", r.args[0].Text))
-		r.client.send("Use \"help\" or \"?\" for help.\n")
+		outStr := fmt.Sprintf("invalid command: %s\n"+
+			"Use \"help\" or \"?\" for help.\n",
+			r.args[0].Text)
+		r.client.send(outStr)
 		return
 	}
 	cmd.run(r)

@@ -72,8 +72,10 @@ func (s *Server) listenWrite() {
 			s.clients[c.ID] = c
 			go c.listen()
 		case c := <-s.delCh:
+			//if _, ok := s.clients[c.ID]; ok {
 			log.Printf("Lost client (id: %d)\n", c.ID)
 			delete(s.clients, c.ID)
+			//	}
 		}
 	}
 }

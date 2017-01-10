@@ -9,12 +9,12 @@ func init() {
 	help.run = func(req *Request) {
 		switch {
 		case len(req.args) == 1:
-			req.client.send("Use \"help <command>\" for help with <command>.\n\n")
-			req.client.send("Available commands:\n")
+			outStr := "Use \"help <command>\" for help with <command>.\n\n" +
+				"Available commands:\n"
 			for _, cmd := range commands {
-				req.client.send(fmt.Sprintf("%10s - %s\n", cmd.name, cmd.desc))
+				outStr += fmt.Sprintf("%10s - %s\n", cmd.name, cmd.desc)
 			}
-			req.client.send("\n")
+			req.client.send(outStr)
 		default:
 			cmdList := commands
 			argList := req.args[1:]

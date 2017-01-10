@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 // ClientID is a numeric identifier for connected clients
@@ -37,28 +38,42 @@ func (c *Client) listen() {
 	c.listenWrite()
 }
 
-func (c *Client) listenRead() {
+func (c *Client) done() {
+	c.doneCh <- true
+	c.doneCh <- true
+}
 
+func (c *Client) listenRead() {
 	defer c.conn.Close()
+
 	reader := bufio.NewReader(c.conn)
+
+	inLine := ""
+	inBytes := make([]byte, 1)
 	for {
 		select {
 		case <-c.doneCh:
 			c.server.delClient(c)
-			c.doneCh <- true
 			return
 		default:
-			data, err := reader.ReadString('\n')
-			if err != nil {
-				if err == io.EOF {
-					c.doneCh <- true
-				} else {
-					log.Printf("reader.ReadString(): %s", err)
+			c.conn.SetReadDeadline(time.Now().Add(time.Duration(1) * time.Second))
+			numBytes, err := reader.Read(inBytes)
+			if err == io.EOF {
+				go c.done()
+
+			} else if err != nil {
+				if err, ok := err.(net.Error); !ok || !err.Timeout() {
+					go c.done()
 				}
-			} else {
-				log.Printf("Received: %s", data)
-				req := NewRequest(c, strings.TrimSpace(data))
-				req.handle()
+			} else if numBytes > 0 {
+				if inBytes[0] == '\n' {
+					log.Printf("Received: %s\n", inLine)
+					req := NewRequest(c, strings.TrimSpace(inLine))
+					inLine = ""
+					req.handle()
+				} else {
+					inLine += string(inBytes)
+				}
 			}
 		}
 	}
@@ -68,10 +83,12 @@ func (c *Client) listenWrite() {
 	for {
 		select {
 		case <-c.doneCh:
-			c.server.delClient(c)
-			c.doneCh <- true
 			return
 		case msg := <-c.sendCh:
+			if msg[len(msg)-1] != '\n' {
+				msg += "\n"
+			}
+			msg += ".\n"
 			c.conn.Write([]byte(msg))
 		}
 	}
