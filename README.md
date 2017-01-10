@@ -5,6 +5,20 @@ desktops.
 
 __THIS IS A WORK IN PROGRESS__
 
+## Requirements
+
+A system for secure password storage should be used with this software.
+  This means something like OSX Keychain, Gnome Keyring, KDE Wallet, etc..
+
+Code must be written for each of these systems to work with the application's
+  security interface ([secure.go](xen-daemon/secure.go)).
+
+__Currently Supported Security:__
+* OSX Keychain ([secure_darwin.go](xen-daemon/secure_darwin.go))
+
+If you do not have one of the above password encryption tools available, then
+  this software will not work for you.
+
 ## Install
 
 Install the daemon:
@@ -22,7 +36,7 @@ go build github.com/johnprather/xen-cli/xen
 ### Usage
 
 The daemon runs in the background, and the CLI is used to exchange information
-with it.
+  with it.
 
 #### Daemon
 
@@ -46,25 +60,26 @@ xen-daemon -debug
 ```
 
 Specify a custom base dir, where the daemon creates its files (default
-is $HOME/.xen-cli/):
+  is $HOME/.xen-cli/):
 
 ```
 xen-daemon -base.dir=/path/to/basedir
 ```
 
-Specify a custom socket path:
+Specify a custom socket path (default <basedir>/xen-daemon.sock):
 
 ```
 xen-daemon -socket.path=/path/to/socket
 ```
 
-Specify a custom logfile:
+Specify a custom logfile (default <basedir>/xen-daemon.log):
 
 ```
 xen-daemon -log.file=/path/to/logfile
 ```
 
-Specify a custom save file for the xapi servers list:
+Specify a custom save file for the xapi servers list (default
+  <basedir>/servers.json):
 
 ```
 xen-daemon -servers.file=/path/to/servers.json
@@ -97,7 +112,7 @@ Specify a custom base directory (default is $HOME/.xen-cli/):
 xen -base.dir=/path/to/basedir
 ```
 
-Specify a custom socket path:
+Specify a custom socket path (default <basedir>/xen-daemon.sock):
 
 ```
 xen -socket.path=/path/to/socket
