@@ -28,20 +28,26 @@ func init() {
 		default:
 			cmdList := commands
 			argList := req.args[1:]
-			var cmd *Command
-			var ok bool
-			for cmd, ok = cmdList[argList[0].Text]; ok; {
+			var command *Command
+
+			for {
+				cmd, ok := cmdList[argList[0].Text]
+				if !ok {
+					break
+				}
+				command = cmd
 				if len(argList) > 1 {
 					argList = argList[1:]
+					cmdList = command.subCommands
 				} else {
 					break
 				}
 			}
-			if cmd == nil {
+			if command == nil {
 				req.client.send("Help unavailable, unrecognized command.\n")
 				return
 			}
-			cmd.help(req)
+			command.help(req)
 		}
 	}
 	help.help = func(req *Request) {
