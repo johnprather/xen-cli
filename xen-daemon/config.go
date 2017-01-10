@@ -6,10 +6,11 @@ import (
 )
 
 type configClass struct {
-	baseDir    string
-	debug      bool
-	socketPath string
-	logFile    string
+	baseDir     string
+	debug       bool
+	socketPath  string
+	logFile     string
+	serversFile string
 }
 
 var config = &configClass{}

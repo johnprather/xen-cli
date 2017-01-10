@@ -12,6 +12,7 @@ type Secure interface {
 	GetPassword(name string) (pass string, err error)
 	SetDefaultPassword(pass string) (err error)
 	SetPassword(name string, pass string) (err error)
+	DelPassword(name string) (err error)
 }
 
 // this gets called by main() to ensure we have a secure interface

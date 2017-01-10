@@ -40,7 +40,7 @@ func init() {
 	serverList.run = func(req *Request) {
 		outStr := "XAPI Servers:\n"
 		for _, server := range xenData.servers {
-			outStr += fmt.Sprintf("\t%s\n", server.hostname)
+			outStr += fmt.Sprintf("\t%s\n", server.Hostname)
 		}
 		req.client.send(outStr)
 	}
@@ -53,15 +53,46 @@ func init() {
 
 	serverAdd := NewCommand("add", "add xapi server")
 	serverAdd.run = func(req *Request) {
-
+		if len(req.args) != 3 {
+			req.client.send("Usage: server add <hostname>\n")
+			return
+		}
+		svr, err := xenData.addServer(req.args[2].Text)
+		if err != nil {
+			req.client.send(fmt.Sprintf("Error adding server %s: %s\n",
+				req.args[2].Text, err))
+			return
+		}
+		req.client.send(fmt.Sprintf("Server added: %s\n", svr.Hostname))
 	}
 	serverAdd.help = func(req *Request) {
 		outStr := "Command \"server add\" will add a new xapi server.\n\n" +
-			"Usage: server add <hostname> <user>\n\n" +
+			"Usage: server add <hostname>\n\n" +
 			"Note that if you have not yet configured your xapi password, you will " +
 			"need\nto do so in order for this to work.  Use -password.set option " +
-			"on the client\nto set the password to be used for new servers."
+			"on the client\nto set the password to be used for new servers.\n"
 		req.client.send(outStr)
 	}
 	server.subCommands[serverAdd.name] = serverAdd
+
+	serverDel := NewCommand("remove", "remove xapi server")
+	serverDel.run = func(req *Request) {
+		if len(req.args) != 3 {
+			req.client.send("Usage: server remove <hostname>\n")
+			return
+		}
+		hostname, err := xenData.delServer(req.args[2].Text)
+		if err != nil {
+			req.client.send(fmt.Sprintf("Error removing server server %s: %s\n",
+				req.args[2].Text, err))
+			return
+		}
+		req.client.send(fmt.Sprintf("Server removed: %s\n", hostname))
+	}
+	serverDel.help = func(req *Request) {
+		outStr := "Command \"server remove\" will remove an xapi server.\n\n" +
+			"Usage: server remove <hostname>\n"
+		req.client.send(outStr)
+	}
+	server.subCommands[serverDel.name] = serverDel
 }

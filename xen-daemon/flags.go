@@ -22,6 +22,7 @@ func initFlags() {
 		"socket path used by xen-cli for interprocess communication")
 	debug := flag.Bool("debug", false, "do not fork to background")
 	logFile := flag.String("log.file", "", "file to use for logging")
+	serversFile := flag.String("servers.file", "", "file for storing server list")
 	flag.Parse()
 
 	if baseDir != nil && *baseDir == "" {
@@ -41,6 +42,12 @@ func initFlags() {
 		config.logFile = *logFile
 	} else {
 		config.logFile = path.Join(config.baseDir, "xen-daemon.log")
+	}
+
+	if serversFile != nil && *serversFile != "" {
+		config.serversFile = *serversFile
+	} else {
+		config.serversFile = path.Join(config.baseDir, "servers.json")
 	}
 
 	if debug != nil {

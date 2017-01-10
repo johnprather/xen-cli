@@ -9,6 +9,7 @@ import "github.com/johnprather/go-simple-keychain/simpleKeychain"
 type SecureDarwin struct {
 	group   string
 	account string
+	prefix  string
 }
 
 func init() {
@@ -20,6 +21,7 @@ func NewSecureDarwin() *SecureDarwin {
 	secure := &SecureDarwin{}
 	secure.group = "group.com.github.johnprather.xen-cli"
 	secure.account = "root"
+	secure.prefix = "com.github.johnprather.xen-cli."
 	return secure
 }
 
@@ -30,7 +32,7 @@ func (s *SecureDarwin) GetDefaultPassword() (pass string, err error) {
 
 // GetPassword returns the pw for specified xapi server
 func (s *SecureDarwin) GetPassword(name string) (pass string, err error) {
-	pass, err = simpleKeychain.Load(s.group, name, s.account)
+	pass, err = simpleKeychain.Load(s.group, s.prefix+name, s.account)
 	return
 }
 
@@ -41,5 +43,10 @@ func (s *SecureDarwin) SetDefaultPassword(pass string) (err error) {
 
 // SetPassword sets the password for a specified xapi server
 func (s *SecureDarwin) SetPassword(name string, pass string) (err error) {
-	return simpleKeychain.Save(s.group, name, s.account, pass)
+	return simpleKeychain.Save(s.group, s.prefix+name, s.account, pass)
+}
+
+// DelPassword removes the password for specified xapi server
+func (s *SecureDarwin) DelPassword(name string) (err error) {
+	return simpleKeychain.Delete(s.group, s.prefix+name, s.account)
 }

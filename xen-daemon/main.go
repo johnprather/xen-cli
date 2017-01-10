@@ -22,6 +22,9 @@ func main() {
 	log.Printf("%20s: %s\n", "base.dir", config.baseDir)
 	log.Printf("%20s: %s\n", "socket.path", config.socketPath)
 
+	xenData.loadXenServers()
+	xenData.launchPollers()
+
 	server := NewServer()
 	server.listen()
 
