@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+	checkSecure()
 
 	initFlags()
 	validateConfig()

@@ -9,6 +9,13 @@ type Command struct {
 	subCommands map[string]*Command
 }
 
+// NewCommand returns an instantiated Command object
+func NewCommand(name string, desc string) *Command {
+	cmd := &Command{name: name, desc: desc}
+	cmd.subCommands = make(map[string]*Command)
+	return cmd
+}
+
 var commands map[string]*Command
 
 func init() {

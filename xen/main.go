@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var conn net.Conn
@@ -16,6 +18,17 @@ func main() {
 	initFlags()
 
 	switch {
+	case setPassword:
+		fmt.Printf("Enter default XAPI password: ")
+		pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println("")
+		if err != nil {
+			fmt.Println("terminal.ReadPassword():", err)
+			os.Exit(1)
+		}
+		connect()
+		defer disconnect()
+		runCommand("password " + string(pass))
 	case len(os.Args) > 1:
 		var cmdString string
 		for _, arg := range os.Args[1:] {
@@ -33,7 +46,7 @@ func main() {
 			fmt.Print("xen> ")
 			cmdString, err := reader.ReadString('\n')
 			if err != nil {
-        fmt.Println("")
+				fmt.Println("")
 				if err == io.EOF {
 					os.Exit(0)
 				}

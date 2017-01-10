@@ -7,6 +7,8 @@ import (
 	"path"
 )
 
+var setPassword bool
+
 func initFlags() {
 
 	// if we can determine HOME, use it to set a default base.dir
@@ -20,6 +22,8 @@ func initFlags() {
 		"base dir used by xen-cli for its files")
 	socketPath := flag.String("socket.path", "",
 		"socket path used by xen-cli for interprocess communication")
+	password := flag.Bool("password", false,
+		"prompt user to provide default xapi password")
 	flag.Parse()
 
 	if baseDir != nil && *baseDir == "" {
@@ -33,6 +37,10 @@ func initFlags() {
 		config.socketPath = *socketPath
 	} else {
 		config.socketPath = path.Join(config.baseDir, "xen-daemon.sock")
+	}
+
+	if password != nil && *password {
+		setPassword = true
 	}
 
 }

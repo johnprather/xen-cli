@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"time"
@@ -67,7 +66,6 @@ func (c *Client) listenRead() {
 				}
 			} else if numBytes > 0 {
 				if inBytes[0] == '\n' {
-					log.Printf("Received: %s\n", inLine)
 					req := NewRequest(c, strings.TrimSpace(inLine))
 					inLine = ""
 					req.handle()

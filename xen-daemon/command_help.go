@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 func init() {
 	help := &Command{}
@@ -10,10 +13,17 @@ func init() {
 		switch {
 		case len(req.args) == 1:
 			outStr := "Use \"help <command>\" for help with <command>.\n\n" +
-				"Available commands:\n"
-			for _, cmd := range commands {
-				outStr += fmt.Sprintf("%10s - %s\n", cmd.name, cmd.desc)
+				"Available commands:\n\n"
+			var cmdList []string
+			for name := range commands {
+				cmdList = append(cmdList, name)
 			}
+			sort.Strings(cmdList)
+			for _, name := range cmdList {
+				cmd := commands[name]
+				outStr += fmt.Sprintf("%10s - %s\n", name, cmd.desc)
+			}
+			outStr += "\n"
 			req.client.send(outStr)
 		default:
 			cmdList := commands
