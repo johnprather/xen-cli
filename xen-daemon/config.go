@@ -3,14 +3,16 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 )
 
 type configClass struct {
-	baseDir     string
-	debug       bool
-	socketPath  string
-	logFile     string
-	serversFile string
+	baseDir        string
+	debug          bool
+	socketPath     string
+	logFile        string
+	serversFile    string
+	requestTimeout time.Duration
 }
 
 var config = &configClass{}

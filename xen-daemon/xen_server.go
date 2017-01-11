@@ -6,15 +6,20 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	xenAPI "github.com/johnprather/go-xen-api-client"
 )
 
 // XenServer a struct to hold xapi server data
 type XenServer struct {
-	Hostname string
-	User     string
-	IP       net.IP
+	Hostname       string
+	User           string
+	IP             net.IP
+	lastUpdate     time.Time
+	lastUpdateLock sync.Mutex
+	password       string
 }
 
 // NewXenServer returns an instantiated XenServer object
@@ -71,7 +76,7 @@ func NewXenServer(hostname string) (server *XenServer, err error) {
 	if err != nil {
 		return
 	}
-	xenClient, err := xenAPI.NewClient("https://"+svr.Hostname, nil)
+	xenClient, err := xenData.getClient(svr.Hostname)
 	if err != nil {
 		return
 	}
@@ -86,6 +91,7 @@ func NewXenServer(hostname string) (server *XenServer, err error) {
 		err = fmt.Errorf("LoginWithPassword(): %s", err)
 		return
 	}
+	svr.password = pass
 	err = secure.SetPassword(svr.IP.String(), pass)
 	if err != nil {
 		err = fmt.Errorf("SetPassword(): %s", err)
@@ -94,4 +100,37 @@ func NewXenServer(hostname string) (server *XenServer, err error) {
 
 	server = svr
 	return
+}
+
+func (s *XenServer) hasData() bool {
+	return xenData.hasData(s)
+}
+
+func (s *XenServer) setData(data *XenDataSet) {
+	xenData.setData(s, data)
+}
+
+func (s *XenServer) clearData() {
+	xenData.clearData(s)
+}
+
+func (s *XenServer) getLastUpdate() time.Time {
+	s.lastUpdateLock.Lock()
+	defer s.lastUpdateLock.Unlock()
+	lastUpdate := s.lastUpdate
+	return lastUpdate
+}
+
+func (s *XenServer) setLastUpdate() {
+	s.lastUpdateLock.Lock()
+	defer s.lastUpdateLock.Unlock()
+	s.lastUpdate = time.Now()
+}
+
+func (s *XenServer) getData() *XenDataSet {
+	return xenData.getDataForServer(s)
+}
+
+func (s *XenServer) getClient() (*xenAPI.Client, error) {
+	return xenData.getClient(s.IP.String())
 }

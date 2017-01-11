@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 func init() {
 	server := NewCommand("server", "manage xapi servers")
@@ -39,8 +42,20 @@ func init() {
 	serverList := NewCommand("list", "list configured xapi servers")
 	serverList.run = func(req *Request) {
 		outStr := "XAPI Servers:\n"
-		for _, server := range xenData.servers {
-			outStr += fmt.Sprintf("\t%s\n", server.Hostname)
+		xenData.serversLock.Lock()
+		currentServers := xenData.servers
+		xenData.serversLock.Unlock()
+		for _, server := range currentServers {
+			var state string
+			if server.hasData() {
+				lastUpdate := server.getLastUpdate()
+				seconds := time.Now().Unix() - lastUpdate.Unix()
+				state = fmt.Sprintf("updated %d seconds ago", seconds)
+			} else {
+				state = "no data"
+			}
+
+			outStr += fmt.Sprintf("\t%-40s - %s\n", server.Hostname, state)
 		}
 		req.client.send(outStr)
 	}

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
+	"regexp"
 	"sync"
 
 	xenAPI "github.com/johnprather/go-xen-api-client"
@@ -16,12 +19,9 @@ type XenData struct {
 	servers     []*XenServer
 	serversLock sync.Mutex
 	data        map[*XenServer]*XenDataSet
+	dataLock    sync.Mutex
 	pollers     map[*XenServer]*XenPoller
-}
-
-// XenDataSet struct to hold data for a specific host
-type XenDataSet struct {
-	poolRecs []*xenAPI.PoolRecord
+	pollersLock sync.Mutex
 }
 
 var xenData *XenData
@@ -30,6 +30,16 @@ func init() {
 	xenData = &XenData{}
 	xenData.data = make(map[*XenServer]*XenDataSet)
 	xenData.pollers = make(map[*XenServer]*XenPoller)
+}
+
+func (x *XenData) getTransport() *http.Transport {
+	xapiTransport := &http.Transport{}
+	xapiTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	return xapiTransport
+}
+
+func (x *XenData) getClient(hostname string) (*xenAPI.Client, error) {
+	return xenAPI.NewClientTimeout("https://"+hostname, x.getTransport(), config.requestTimeout)
 }
 
 func (x *XenData) addServer(hostname string) (*XenServer, error) {
@@ -76,6 +86,7 @@ func (x *XenData) delServer(hostname string) (string, error) {
 	if !deleted {
 		return "", fmt.Errorf("server not found: %s", hostname)
 	}
+	x.saveXenServers()
 	return deletedHostname, nil
 }
 
@@ -104,6 +115,18 @@ func (x *XenData) loadXenServers() {
 	if err != nil {
 		log.Fatalln("Unable to unmarshal xenservers data:", err)
 	}
+	for _, server := range servers {
+		pass, err := secure.GetPassword(server.IP.String())
+		if err != nil {
+			log.Println("secure.GetPassword():", server.Hostname, err)
+			pass, err = secure.GetDefaultPassword()
+			if err != nil {
+				log.Fatalln("secure.GetDefaultPassword():", err)
+
+			}
+		}
+		server.password = pass
+	}
 	x.servers = servers
 }
 
@@ -122,4 +145,163 @@ func (x *XenData) launchPoller(server *XenServer) {
 		return
 	}
 	x.pollers[server] = NewXenPoller(server)
+}
+
+func (x *XenData) hasData(server *XenServer) bool {
+	x.dataLock.Lock()
+	defer x.dataLock.Unlock()
+	if _, ok := x.data[server]; ok {
+		return true
+	}
+	return false
+}
+
+func (x *XenData) setData(server *XenServer, data *XenDataSet) {
+	log.Printf("setting data for %s\n", server.Hostname)
+	defer log.Printf("done setting data for %s\n", server.Hostname)
+	x.dataLock.Lock()
+	x.data[server] = data
+	x.dataLock.Unlock()
+}
+
+func (x *XenData) clearData(server *XenServer) {
+	x.dataLock.Lock()
+	defer x.dataLock.Unlock()
+	if _, ok := x.data[server]; ok {
+		delete(x.data, server)
+	}
+}
+
+func (x *XenData) getData() map[*XenServer]*XenDataSet {
+	x.dataLock.Lock()
+	defer x.dataLock.Unlock()
+	data := make(map[*XenServer]*XenDataSet)
+	for k, v := range x.data {
+		data[k] = v
+	}
+	return data
+}
+
+func (x *XenData) getDataForServer(server *XenServer) *XenDataSet {
+	x.dataLock.Lock()
+	defer x.dataLock.Unlock()
+	if data, ok := x.data[server]; ok {
+		return data
+	}
+	return nil
+}
+
+func (x *XenData) countServers() int {
+	x.serversLock.Lock()
+	defer x.serversLock.Unlock()
+	return len(x.servers)
+}
+
+// StatCounts a struct for vm counts
+type StatCounts struct {
+	Servers   int
+	Pools     StatCountsPools
+	Hosts     StatCountsHosts
+	VMs       StatCountsVMs
+	SRs       StatCountsSRs
+	Templates int
+}
+
+// StatCountsVMs is a struct for vm-based counts
+type StatCountsVMs struct {
+	Total     int
+	Running   int
+	Halted    int
+	Paused    int
+	Suspended int
+}
+
+// StatCountsSRs is a struct for sr-based counts
+type StatCountsSRs struct {
+	Total int
+	NFS   int
+	ISO   int
+	LVM   int
+	UDev  int
+}
+
+// StatCountsHosts is a struct for host-based counts
+type StatCountsHosts struct {
+	Total int
+	HP    int
+	Dell  int
+}
+
+// StatCountsPools is a struct for pool-based counts
+type StatCountsPools struct {
+	Total int
+	HP    int
+	Dell  int
+}
+
+func (x *XenData) countStats() (counts *StatCounts) {
+	counts = &StatCounts{}
+
+	x.serversLock.Lock()
+	counts.Servers = len(x.servers)
+	x.serversLock.Unlock()
+
+	alldata := x.getData()
+	for svr := range alldata {
+		data := svr.getData()
+		countedPoolManus := false
+		counts.Pools.Total += len(data.poolRecs)
+		counts.Hosts.Total += len(data.hostRecs)
+		for _, hostRec := range data.hostRecs {
+			if manu, ok := hostRec.BiosStrings["system-manufacturer"]; ok {
+				if match, err := regexp.MatchString("Dell", manu); err == nil && match {
+					counts.Hosts.Dell++
+					if !countedPoolManus {
+						counts.Pools.Dell++
+						countedPoolManus = true
+					}
+
+				} else if match, err := regexp.MatchString("(HP)|(Hewlett ?Packard)", manu); err == nil && match {
+					counts.Hosts.HP++
+					if !countedPoolManus {
+						counts.Pools.HP++
+						countedPoolManus = true
+					}
+				}
+			}
+
+		}
+		for _, vmRec := range data.vmRecs {
+			if vmRec.IsATemplate {
+				counts.Templates++
+			} else {
+				counts.VMs.Total++
+				switch vmRec.PowerState {
+				case xenAPI.VMPowerStateRunning:
+					counts.VMs.Running++
+				case xenAPI.VMPowerStateHalted:
+					counts.VMs.Halted++
+				case xenAPI.VMPowerStatePaused:
+					counts.VMs.Paused++
+				case xenAPI.VMPowerStateSuspended:
+					counts.VMs.Suspended++
+				}
+			}
+		}
+		for _, srRec := range data.srRecs {
+			counts.SRs.Total++
+			switch srRec.Type {
+			case "nfs":
+				counts.SRs.NFS++
+			case "iso":
+				counts.SRs.ISO++
+			case "lvm":
+				counts.SRs.LVM++
+			case "udev":
+				counts.SRs.UDev++
+			}
+
+		}
+	}
+	return
 }

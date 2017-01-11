@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"time"
 )
 
 func initFlags() {
@@ -23,6 +24,8 @@ func initFlags() {
 	debug := flag.Bool("debug", false, "do not fork to background")
 	logFile := flag.String("log.file", "", "file to use for logging")
 	serversFile := flag.String("servers.file", "", "file for storing server list")
+	requestTimeout := flag.Int("connect.timeout", 30,
+		"timeout (seconds) for xapi connect")
 	flag.Parse()
 
 	if baseDir != nil && *baseDir == "" {
@@ -48,6 +51,10 @@ func initFlags() {
 		config.serversFile = *serversFile
 	} else {
 		config.serversFile = path.Join(config.baseDir, "servers.json")
+	}
+
+	if requestTimeout != nil && *requestTimeout != 0 {
+		config.requestTimeout = time.Duration(*requestTimeout) * time.Second
 	}
 
 	if debug != nil {
