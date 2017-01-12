@@ -110,4 +110,35 @@ func init() {
 		req.client.send(outStr)
 	}
 	server.subCommands[serverDel.name] = serverDel
+
+	serverClear := NewCommand("clearall", "remove all xapi servers")
+	serverClear.run = func(req *Request) {
+		if len(req.args) != 2 {
+			req.client.send("Usage: server clearall\n")
+			return
+		}
+		var outStr string
+		var svrs []*XenServer
+		xenData.serversLock.Lock()
+		for _, svr := range xenData.servers {
+			svrs = append(svrs, svr)
+		}
+		xenData.serversLock.Unlock()
+
+		for _, svr := range svrs {
+			hostname, err := xenData.delServer(svr.Hostname)
+			if err != nil {
+				outStr += fmt.Sprintf("Error removing %s: %s\n", svr.Hostname, err)
+			} else {
+				outStr += fmt.Sprintf("Removed server %s\n", hostname)
+			}
+		}
+		req.client.send(outStr)
+	}
+	serverClear.help = func(req *Request) {
+		outStr := "Command \"server clearall\" will remove all xapi servers.\n\n" +
+			"Usage: server clearall\n"
+		req.client.send(outStr)
+	}
+	server.subCommands[serverClear.name] = serverClear
 }

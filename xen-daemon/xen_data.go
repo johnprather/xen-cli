@@ -71,9 +71,6 @@ func (x *XenData) delServer(hostname string) (string, error) {
 					delete(x.pollers, svr)
 				}()
 			}
-			if _, ok := x.data[svr]; ok {
-				delete(x.data, svr)
-			}
 			err := secure.DelPassword(svr.IP.String())
 			if err != nil {
 				log.Println("DelPassword():", err)
@@ -191,6 +188,38 @@ func (x *XenData) getDataForServer(server *XenServer) *XenDataSet {
 	return nil
 }
 
+func (x *XenData) findVMs(nameLabel string) map[xenAPI.VMRef]*XenServer {
+	vms := make(map[xenAPI.VMRef]*XenServer)
+	alldata := x.getData()
+	for svr, data := range alldata {
+		data.lock.Lock()
+		for vm, vmRec := range data.vmRecs {
+			if vmRec.NameLabel == nameLabel {
+				vms[vm] = svr
+			}
+		}
+		data.lock.Unlock()
+	}
+	return vms
+}
+
+func (x *XenData) findOneVM(nameLabel string) (xenAPI.VMRef, *XenServer, error) {
+	vms := x.findVMs(nameLabel)
+	switch {
+	case len(vms) == 0:
+		return "", nil, fmt.Errorf("No VMs found with name-label %s", nameLabel)
+	case len(vms) > 1:
+		return "", nil, fmt.Errorf("Ambiguous name-label %s used by %d VMs",
+			nameLabel, len(vms))
+	}
+	var vm xenAPI.VMRef
+	var server *XenServer
+	for vm, server = range vms {
+		break
+	}
+	return vm, server, nil
+}
+
 func (x *XenData) countServers() int {
 	x.serversLock.Lock()
 	defer x.serversLock.Unlock()
@@ -230,6 +259,8 @@ type StatCountsHosts struct {
 	Total int
 	HP    int
 	Dell  int
+	Live  int
+	Dead  int
 }
 
 // StatCountsPools is a struct for pool-based counts
@@ -247,12 +278,19 @@ func (x *XenData) countStats() (counts *StatCounts) {
 	x.serversLock.Unlock()
 
 	alldata := x.getData()
-	for svr := range alldata {
-		data := svr.getData()
+	for _, data := range alldata {
+		data = data.dup()
+
 		countedPoolManus := false
 		counts.Pools.Total += len(data.poolRecs)
 		counts.Hosts.Total += len(data.hostRecs)
 		for _, hostRec := range data.hostRecs {
+			if hostMetricsRec, ok := data.hostMetricsRecs[hostRec.Metrics]; ok &&
+				hostMetricsRec.Live {
+				counts.Hosts.Live++
+			} else {
+				counts.Hosts.Dead++
+			}
 			if manu, ok := hostRec.BiosStrings["system-manufacturer"]; ok {
 				if match, err := regexp.MatchString("Dell", manu); err == nil && match {
 					counts.Hosts.Dell++

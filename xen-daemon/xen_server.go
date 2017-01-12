@@ -18,8 +18,10 @@ type XenServer struct {
 	User           string
 	IP             net.IP
 	lastUpdate     time.Time
-	lastUpdateLock sync.Mutex
+	lastUpdateLock sync.Mutex // for read/write to lastUpdate
 	password       string
+	session        xenAPI.SessionRef
+	sessionLock    sync.Mutex
 }
 
 // NewXenServer returns an instantiated XenServer object
@@ -131,6 +133,44 @@ func (s *XenServer) getData() *XenDataSet {
 	return xenData.getDataForServer(s)
 }
 
-func (s *XenServer) getClient() (*xenAPI.Client, error) {
-	return xenData.getClient(s.IP.String())
+func (s *XenServer) getSession() (xenAPI.SessionRef, error) {
+	s.sessionLock.Lock()
+	defer s.sessionLock.Unlock()
+	if s.session == "" {
+		log.Println("establishing new session for", s.Hostname)
+		client, err := s.NewClient()
+		if err != nil {
+			return "", fmt.Errorf("server.NewClient(): %s", err)
+		}
+		defer client.Close()
+		session, err := client.Session.LoginWithPassword(s.User, s.password,
+			"1.0", "xen-cli")
+		if err != nil {
+			return "", fmt.Errorf("LoginWithPassword(): %s", err)
+		}
+		s.session = session
+	}
+	return s.session, nil
+}
+
+// NewClient instantiates a new XenServer client
+func (s *XenServer) NewClient() (*xenAPI.Client, error) {
+	client, err := xenAPI.NewClient("https://"+s.IP.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("xenAPI.NewClient(): %s", err)
+	}
+	return client, nil
+}
+
+func (s *XenServer) getSessionAndNewClient() (xenAPI.SessionRef,
+	*xenAPI.Client, error) {
+	sessionID, err := s.getSession()
+	if err != nil {
+		return "", nil, err
+	}
+	client, err := s.NewClient()
+	if err != nil {
+		return "", nil, err
+	}
+	return sessionID, client, nil
 }

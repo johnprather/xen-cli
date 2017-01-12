@@ -9,10 +9,10 @@ import (
 
 // XenPoller struct for manager of polling a host for data
 type XenPoller struct {
-	server  *XenServer
-	doneCh  chan bool
-	client  *xenAPI.Client
-	session xenAPI.SessionRef
+	server    *XenServer
+	doneCh    chan bool
+	client    *xenAPI.Client
+	sessionID xenAPI.SessionRef
 }
 
 // NewXenPoller instantiates and launches goroutine for a XenPoller
@@ -31,13 +31,14 @@ func (p *XenPoller) loop() {
 	for {
 		select {
 		case <-p.doneCh:
+			p.server.clearData()
 			if p.client != nil {
 				p.client.Close()
 			}
 			return
 		default:
-			pollDelay := 2
 			p.gatherData()
+			pollDelay := 2
 			if !p.server.hasData() {
 				pollDelay = 15
 			}
@@ -55,118 +56,118 @@ func (p *XenPoller) gatherData() {
 }
 
 func (p *XenPoller) gatherAllData() {
-	defer log.Printf("%s: finsihed gatherAllData\n", p.server.Hostname)
+	var err error
+	var sessionID xenAPI.SessionRef
+	if p.client == nil {
+		sessionID, p.client, err = p.server.getSessionAndNewClient()
+		if err != nil {
+			log.Println("getSessionAndNewClient():", p.server.Hostname, err)
+			p.fail()
+			return
+		}
+	} else {
+		sessionID, err = p.server.getSession()
+		if err != nil {
+			log.Println("getSession():", p.server.Hostname, err)
+			p.fail()
+			return
+		}
+	}
+
 	data := &XenDataSet{}
-	xenClient, err := p.server.getClient()
-	if err != nil {
-		log.Println("getClient():", err)
-		p.fail()
-		return
-	}
 
-	sessionID, err := xenClient.Session.LoginWithPassword(p.server.User,
-		p.server.password, "1.0", "xen-cli")
-	if err != nil {
-		log.Println("LoginWithPassword():", p.server.Hostname, err)
-		p.fail()
-		return
-	}
-
-	err = xenClient.Event.Register(sessionID, []string{"*"})
+	err = p.client.Event.Register(sessionID, []string{"*"})
 	if err != nil {
 		log.Println("Event.Register():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.poolRecs, err = xenClient.Pool.GetAllRecords(sessionID)
+	data.poolRecs, err = p.client.Pool.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("Pool.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.hostRecs, err = xenClient.Host.GetAllRecords(sessionID)
+	data.hostRecs, err = p.client.Host.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("Host.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
-	log.Printf("%s: loaded %d host records\n", p.server.Hostname,
-		len(data.hostRecs))
 
-	data.vmRecs, err = xenClient.VM.GetAllRecords(sessionID)
+	data.vmRecs, err = p.client.VM.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("VM.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.vbdRecs, err = xenClient.VBD.GetAllRecords(sessionID)
+	data.vbdRecs, err = p.client.VBD.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("VBD.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.vdiRecs, err = xenClient.VDI.GetAllRecords(sessionID)
+	data.vdiRecs, err = p.client.VDI.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("VDI.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.srRecs, err = xenClient.SR.GetAllRecords(sessionID)
+	data.srRecs, err = p.client.SR.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("SR.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.consoleRecs, err = xenClient.Console.GetAllRecords(sessionID)
-	if err != nil {
-		log.Println("Console.GetAllRecords():", p.server.Hostname, err)
-		p.fail()
-		return
-	}
-
-	data.pbdRecs, err = xenClient.PBD.GetAllRecords(sessionID)
+	data.pbdRecs, err = p.client.PBD.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("PBD.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.pifRecs, err = xenClient.PIF.GetAllRecords(sessionID)
+	data.pifRecs, err = p.client.PIF.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("PIF.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.vifRecs, err = xenClient.VIF.GetAllRecords(sessionID)
+	data.vifRecs, err = p.client.VIF.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("VIF.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.messageRecs, err = xenClient.Message.GetAllRecords(sessionID)
+	data.messageRecs, err = p.client.Message.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("VIF.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	data.taskRecs, err = xenClient.Task.GetAllRecords(sessionID)
+	data.taskRecs, err = p.client.Task.GetAllRecords(sessionID)
 	if err != nil {
 		log.Println("Task.GetAllRecords():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
 
-	p.client = xenClient
-	p.session = sessionID
+	data.hostMetricsRecs, err = p.client.HostMetrics.GetAllRecords(sessionID)
+	if err != nil {
+		log.Println("HostMetrics.GetAllRecords():", p.server.Hostname, err)
+		p.fail()
+		return
+	}
+	data.lastHostMetricsUpdate = time.Now()
+
 	p.server.setData(data)
 	p.server.setLastUpdate()
 }
@@ -182,6 +183,8 @@ func (p *XenPoller) gatherEvents() {
 		vdi     = "vdi"
 		vm      = "vm"
 	)
+	var err error
+
 	data := p.server.getData()
 	if data == nil {
 		log.Println("data is nil for", p.server.Hostname)
@@ -189,9 +192,35 @@ func (p *XenPoller) gatherEvents() {
 		return
 	}
 
-	events, err := p.client.Event.Next(p.session)
+	data.lock.Lock()
+	lastHostMetricsUpdate := data.lastHostMetricsUpdate
+	data.lock.Unlock()
+
+	// get current sessionref for the server
+	p.sessionID, err = p.server.getSession()
 	if err != nil {
-		log.Println("Event.From():", err)
+		log.Println("server.getSession():", err)
+		p.fail()
+		return
+	}
+
+	// since there may be no change, ensure a decent minimum polling interval
+	if time.Since(lastHostMetricsUpdate) > time.Duration(10)*time.Second {
+		hostMetricsRecs, hmerr := p.client.HostMetrics.GetAllRecords(p.sessionID)
+		if hmerr != nil {
+			log.Println("HostMetrics.GetAllRecords():", p.server.Hostname, err)
+			p.fail()
+			return
+		}
+		data.lock.Lock()
+		data.hostMetricsRecs = hostMetricsRecs
+		data.lastHostMetricsUpdate = time.Now()
+		data.lock.Unlock()
+	}
+
+	events, err := p.client.Event.Next(p.sessionID)
+	if err != nil {
+		log.Println("Event.From():", p.server.Hostname, err)
 		p.fail()
 		return
 	}
@@ -272,7 +301,7 @@ func (p *XenPoller) modTask(task xenAPI.TaskRef) (err error) {
 }
 
 func (p *XenPoller) setTask(task xenAPI.TaskRef, action string) (err error) {
-	taskRec, err := p.client.Task.GetRecord(p.session, task)
+	taskRec, err := p.client.Task.GetRecord(p.sessionID, task)
 	if err != nil {
 		return
 	}
@@ -311,7 +340,7 @@ func (p *XenPoller) modPool(pool xenAPI.PoolRef) (err error) {
 }
 
 func (p *XenPoller) setPool(pool xenAPI.PoolRef, action string) (err error) {
-	poolRec, err := p.client.Pool.GetRecord(p.session, pool)
+	poolRec, err := p.client.Pool.GetRecord(p.sessionID, pool)
 	if err != nil {
 		return
 	}
@@ -341,7 +370,7 @@ func (p *XenPoller) modHost(host xenAPI.HostRef) (err error) {
 }
 
 func (p *XenPoller) setHost(host xenAPI.HostRef, action string) (err error) {
-	hostRec, err := p.client.Host.GetRecord(p.session, host)
+	hostRec, err := p.client.Host.GetRecord(p.sessionID, host)
 	if err != nil {
 		return
 	}
@@ -380,7 +409,7 @@ func (p *XenPoller) modVM(vm xenAPI.VMRef) (err error) {
 }
 
 func (p *XenPoller) setVM(vm xenAPI.VMRef, action string) (err error) {
-	vmRec, err := p.client.VM.GetRecord(p.session, vm)
+	vmRec, err := p.client.VM.GetRecord(p.sessionID, vm)
 	if err != nil {
 		return
 	}
@@ -418,7 +447,7 @@ func (p *XenPoller) modSR(sr xenAPI.SRRef) (err error) {
 }
 
 func (p *XenPoller) setSR(sr xenAPI.SRRef, action string) (err error) {
-	srRec, err := p.client.SR.GetRecord(p.session, sr)
+	srRec, err := p.client.SR.GetRecord(p.sessionID, sr)
 	if err != nil {
 		return
 	}
@@ -456,7 +485,7 @@ func (p *XenPoller) modMessage(message xenAPI.MessageRef) (err error) {
 }
 
 func (p *XenPoller) setMessage(message xenAPI.MessageRef, action string) (err error) {
-	messageRec, err := p.client.Message.GetRecord(p.session, message)
+	messageRec, err := p.client.Message.GetRecord(p.sessionID, message)
 	if err != nil {
 		return
 	}
@@ -494,7 +523,7 @@ func (p *XenPoller) modVBD(vbd xenAPI.VBDRef) (err error) {
 }
 
 func (p *XenPoller) setVBD(vbd xenAPI.VBDRef, action string) (err error) {
-	vbdRec, err := p.client.VBD.GetRecord(p.session, vbd)
+	vbdRec, err := p.client.VBD.GetRecord(p.sessionID, vbd)
 	if err != nil {
 		return
 	}
@@ -534,7 +563,7 @@ func (p *XenPoller) modVDI(vdi xenAPI.VDIRef) (err error) {
 }
 
 func (p *XenPoller) setVDI(vdi xenAPI.VDIRef, action string) (err error) {
-	vdiRec, err := p.client.VDI.GetRecord(p.session, vdi)
+	vdiRec, err := p.client.VDI.GetRecord(p.sessionID, vdi)
 	if err != nil {
 		return
 	}

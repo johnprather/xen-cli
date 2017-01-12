@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func init() {
 	stats := NewCommand("stats", "view application statistics")
@@ -13,52 +16,77 @@ func init() {
 		}
 		spaceStr += "\n"
 		outStr += spaceStr
-		outStr += fmt.Sprintf("%20s %d\n", "XAPI Servers", counts.Servers)
-		outStr += spaceStr
-		outStr += fmt.Sprintf("%20s %d\n", "(Total) Pools", counts.Pools.Total)
+		outStr += fmt.Sprintf("XAPI Servers: %d\n", counts.Servers)
+		outStr += fmt.Sprintf("Pools: %d", counts.Pools.Total)
+		var poolManus []string
 		if counts.Pools.Dell > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Dell) Pools", counts.Pools.Dell)
+			poolManus = append(poolManus, fmt.Sprintf("Dell: %d", counts.Pools.Dell))
 		}
 		if counts.Pools.HP > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(HP) Pools", counts.Pools.HP)
+			poolManus = append(poolManus, fmt.Sprintf("HP: %d", counts.Pools.HP))
 		}
-		outStr += spaceStr
-		outStr += fmt.Sprintf("%20s %d\n", "(Total) Hosts", counts.Hosts.Total)
+		if len(poolManus) > 0 {
+			outStr += fmt.Sprintf(" - %s", strings.Join(poolManus, ", "))
+		}
+		outStr += "\n"
+		outStr += fmt.Sprintf("Hosts: %d", counts.Hosts.Total)
+		var hostLives []string
+		if counts.Hosts.Live > 0 {
+			hostLives = append(hostLives, fmt.Sprintf("Live: %d", counts.Hosts.Live))
+		}
+		if counts.Hosts.Dead > 0 {
+			hostLives = append(hostLives, fmt.Sprintf("Dead: %d", counts.Hosts.Dead))
+		}
+		if len(hostLives) > 0 {
+			outStr += fmt.Sprintf(" - %s", strings.Join(hostLives, ", "))
+		}
+		var hostManus []string
 		if counts.Hosts.Dell > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Dell) Hosts", counts.Hosts.Dell)
+			hostManus = append(hostManus, fmt.Sprintf("Dell: %d", counts.Hosts.Dell))
 		}
 		if counts.Hosts.HP > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(HP) Hosts", counts.Hosts.HP)
+			hostManus = append(hostManus, fmt.Sprintf("HP: %d", counts.Hosts.HP))
 		}
-		outStr += spaceStr
-		outStr += fmt.Sprintf("%20s %d\n", "(Total) VMs", counts.VMs.Total)
+		if len(hostManus) > 0 {
+			outStr += fmt.Sprintf(" - %s", strings.Join(hostManus, ", "))
+		}
+		outStr += "\n"
+		outStr += fmt.Sprintf("VMs: %d", counts.VMs.Total)
+		var vmPows []string
 		if counts.VMs.Running > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Running) VMs", counts.VMs.Running)
+			vmPows = append(vmPows, fmt.Sprintf("Running: %d", counts.VMs.Running))
 		}
 		if counts.VMs.Halted > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Halted) VMs", counts.VMs.Halted)
+			vmPows = append(vmPows, fmt.Sprintf("Halted: %d", counts.VMs.Halted))
 		}
 		if counts.VMs.Paused > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Paused) VMs", counts.VMs.Paused)
+			vmPows = append(vmPows, fmt.Sprintf("Paused: %d", counts.VMs.Paused))
 		}
 		if counts.VMs.Suspended > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(Suspended) VMs", counts.VMs.Suspended)
+			vmPows = append(vmPows, fmt.Sprintf("Suspended: %d", counts.VMs.Suspended))
 		}
-		outStr += spaceStr
-		outStr += fmt.Sprintf("%20s %d\n", "(Total) SRs", counts.SRs.Total)
+		if len(vmPows) > 0 {
+			outStr += fmt.Sprintf(" - %s", strings.Join(vmPows, ", "))
+		}
+		outStr += "\n"
+		outStr += fmt.Sprintf("SRs: %d", counts.SRs.Total)
+		var srTypes []string
 		if counts.SRs.NFS > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(NFS) SRs", counts.SRs.NFS)
+			srTypes = append(srTypes, fmt.Sprintf("NFS: %d", counts.SRs.NFS))
 		}
 		if counts.SRs.LVM > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(LVM) SRs", counts.SRs.LVM)
+			srTypes = append(srTypes, fmt.Sprintf("LVM: %d", counts.SRs.LVM))
 		}
 		if counts.SRs.UDev > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(UDev) SRs", counts.SRs.UDev)
+			srTypes = append(srTypes, fmt.Sprintf("UDev: %d", counts.SRs.UDev))
 		}
 		if counts.SRs.ISO > 0 {
-			outStr += fmt.Sprintf("%20s %d\n", "(ISO) SRs", counts.SRs.ISO)
+			srTypes = append(srTypes, fmt.Sprintf("ISO: %d", counts.SRs.ISO))
 		}
-
+		if len(srTypes) > 0 {
+			outStr += fmt.Sprintf(" - %s", strings.Join(srTypes, ", "))
+		}
+		outStr += "\n"
 		req.client.send(outStr)
 	}
 	stats.help = func(req *Request) {
